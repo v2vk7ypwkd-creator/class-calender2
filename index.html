@@ -44,7 +44,6 @@
       font-size: 1.5rem;
     }
 
-    /* --- 학년/반 선택 화면 --- */
     #selection-screen {
       display: flex;
       flex-direction: column;
@@ -125,7 +124,6 @@
       transition: background 0.2s;
     }
 
-    /* --- 메인 캘린더 화면 --- */
     #main-screen {
       display: none;
       width: 100%;
@@ -239,7 +237,6 @@
       font-weight: bold;
     }
 
-    /* --- 시간표 영역 --- */
     .timetable-section {
       border-top: 1px dashed #ddd;
       padding-top: 20px;
@@ -460,7 +457,7 @@
   </div>
 
   <script>
-    // 사용자 파이어베이스 연동 정보 장착 완료
+    // 시윤님의 실시간 파이어베이스 연동 정보 장착 완료!
     const firebaseConfig = {
       apiKey: "AIzaSyAznDWXnFcYKmiR30tYhdF6l_El-nafvV0",
       authDomain: "calender-cf794.firebaseapp.com",
@@ -544,4 +541,222 @@
         }).catch(() => {
           pwLabel.textContent = "학급 비밀번호 입력";
           pwInput.placeholder = "비밀번호 입력";
-          resetContainer.
+          resetContainer.style.display = 'none';
+        });
+      }
+
+      updatePwPlaceholder();
+
+      pwResetBtn.addEventListener('click', function() {
+        const grade = gradeSelect.value;
+        const sClass = classSelect.value;
+        const docId = `G${grade}_C${sClass}`;
+
+        const inputRecovery = prompt(`[${grade}학년 ${sClass}반] 비밀번호 재설정을 위해 복구 비밀번호를 입력해주세요.`);
+        
+        if (inputRecovery === null) return; 
+
+        if (inputRecovery === MASTER_RECOVERY_PW) {
+          const newPw = prompt('인증 성공! 새로 설정할 비밀번호를 입력해 주세요.');
+          if (newPw && newPw.trim() !== "") {
+            db.collection('classes').doc(docId).update({
+              password: newPw.trim()
+            }).then(() => {
+              pwInput.value = newPw.trim(); 
+              alert(`[${grade}학년 ${sClass}반] 비밀번호가 변경되었습니다.`);
+              updatePwPlaceholder();
+            });
+          } else {
+            alert('유효하지 않은 비밀번호입니다.');
+          }
+        } else {
+          alert('복구 비밀번호가 올바르지 않습니다.');
+        }
+      });
+
+      startBtn.addEventListener('click', function() {
+        const grade = gradeSelect.value;
+        const sClass = classSelect.value;
+        const password = pwInput.value.trim();
+
+        if (!password) {
+          alert('비밀번호를 입력해 주세요!');
+          return;
+        }
+
+        const docId = `G${grade}_C${sClass}`;
+        const classRef = db.collection('classes').doc(docId);
+
+        classRef.get().then((doc) => {
+          if (doc.exists) {
+            const data = doc.data();
+            if (data.password !== password) {
+              alert('비밀번호가 올바르지 않습니다.');
+            } else {
+              localStorage.setItem('user_saved_grade', grade);
+              localStorage.setItem('user_saved_class', sClass);
+              enterCalendar(grade, sClass);
+            }
+          } else {
+            classRef.set({
+              password: password,
+              events: [],
+              timetable: {}
+            }).then(() => {
+              alert(`축하합니다! ${grade}학년 ${sClass}반 비밀번호가 설정되었습니다.`);
+              localStorage.setItem('user_saved_grade', grade);
+              localStorage.setItem('user_saved_class', sClass);
+              enterCalendar(grade, sClass);
+            });
+          }
+        }).catch(err => {
+          console.error(err);
+          alert('서버 접속 중 오류가 발생했습니다.');
+        });
+      });
+
+      changeClassBtn.addEventListener('click', function() {
+        if (calendar) {
+          calendar.destroy();
+        }
+        if (unsubscribe) {
+          unsubscribe();
+        }
+        pwInput.value = ''; 
+        updatePwPlaceholder();
+        mainScreen.style.display = 'none';
+        selectionScreen.style.display = 'flex';
+      });
+
+      function enterCalendar(grade, sClass) {
+        currentDocId = `G${grade}_C${sClass}`;
+        classTitle.textContent = `🏫 ${grade}학년 ${sClass}반`;
+
+        selectionScreen.style.display = 'none';
+        mainScreen.style.display = 'block';
+
+        initCalendar();
+
+        if (unsubscribe) unsubscribe();
+        unsubscribe = db.collection('classes').doc(currentDocId).onSnapshot((doc) => {
+          if (doc.exists) {
+            const data = doc.data();
+            
+            savedEvents = data.events || [];
+            if (calendar) {
+              calendar.removeAllEvents();
+              calendar.addEventSource(savedEvents);
+            }
+
+            const timetableData = data.timetable || {};
+            const inputs = timetableBody.querySelectorAll('input');
+            inputs.forEach(input => {
+              const period = input.dataset.period;
+              const day = input.dataset.day;
+              const key = `${day}_${period}`;
+              input.value = timetableData[key] || ''; 
+            });
+          }
+        });
+      }
+
+      saveTimetableBtn.addEventListener('click', function() {
+        const timetableData = {};
+        const inputs = timetableBody.querySelectorAll('input');
+
+        inputs.forEach(input => {
+          const period = input.dataset.period;
+          const day = input.dataset.day;
+          const key = `${day}_${period}`;
+          timetableData[key] = input.value.trim();
+        });
+
+        db.collection('classes').doc(currentDocId).update({
+          timetable: timetableData
+        }).then(() => {
+          alert('시간표가 실시간으로 저장되었습니다!');
+        }).catch(err => {
+          alert('시간표 저장 실패: ' + err.message);
+        });
+      });
+
+      function initCalendar() {
+        calendar = new FullCalendar.Calendar(calendarEl, {
+          initialView: 'dayGridMonth',
+          locale: 'ko',
+          headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,dayGridWeek'
+          },
+          events: savedEvents,
+          eventClick: function(info) {
+            if (confirm(`'${info.event.title}' 일정을 삭제하시겠습니까?`)) {
+              const eventId = info.event.id;
+              const targetEvent = savedEvents.find(e => e.id === eventId || (e.title === info.event.title && e.start === info.event.startStr));
+              if (targetEvent) {
+                db.collection('classes').doc(currentDocId).update({
+                  events: firebase.firestore.FieldValue.arrayRemove(targetEvent)
+                }).then(() => {
+                  alert('일정이 삭제되었습니다.');
+                });
+              } else {
+                info.event.remove();
+              }
+            }
+          }
+        });
+
+        calendar.render();
+      }
+
+      const form = document.getElementById('eval-form');
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const title = document.getElementById('title').value;
+        const startDate = document.getElementById('start-date').value;
+        const endDate = document.getElementById('end-date').value;
+        const color = document.getElementById('subject-color').value;
+
+        let endDateString = startDate; 
+
+        if (endDate) {
+          if (new Date(startDate) > new Date(endDate)) {
+            alert('종료일은 시작일보다 빠를 수 없습니다.');
+            return;
+          }
+          const adjustedEndDate = new Date(endDate);
+          adjustedEndDate.setDate(adjustedEndDate.getDate() + 1);
+          endDateString = adjustedEndDate.toISOString().split('T')[0];
+        } else {
+          const adjustedEndDate = new Date(startDate);
+          adjustedEndDate.setDate(adjustedEndDate.getDate() + 1);
+          endDateString = adjustedEndDate.toISOString().split('T')[0];
+        }
+
+        const textColor = color === '#90afc5' ? '#ffffff' : '#4a4a4a';
+
+        const newEvent = {
+          id: Date.now().toString(),
+          title: title,
+          start: startDate,
+          end: endDateString,
+          backgroundColor: color,
+          borderColor: color,
+          textColor: textColor,
+          allDay: true
+        };
+
+        db.collection('classes').doc(currentDocId).update({
+          events: firebase.firestore.FieldValue.arrayUnion(newEvent)
+        }).then(() => {
+          form.reset();
+        }).catch(err => {
+          alert('일정 등록 실패: ' + err.message);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
