@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ko" translate="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="google" content="notranslate">
+  <title>공유 캘린더</title>
+  
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="공유 캘린더">
+
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --primary-color: #4a90e2;
+      --bg-color: #f5f7fa;
+      --card-color: #ffffff;
+    }
+
+    html, body {
+      background-color: var(--bg-color);
+      margin: 0;
+      padding: 10px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    header {
+      margin: 10px 0 15px 0;
+      text-align: center;
+    }
+
+    header h1 {
+      color: #333;
+      margin: 0;
+      font-size: 1.5rem;
+    }
+
+    /* --- 학년/반 선택 화면 --- */
+    #selection-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--card-color);
+      padding: 25px 20px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+      max-width: 400px;
+      width: 100%;
+      margin: 30px auto 0 auto;
+      box-sizing: border-box;
+    }
+
+    #selection-screen h2 {
+      margin-top: 0;
+      color: #333;
+      margin-bottom: 20px;
+      font-size: 1.3rem;
+    }
+
+    .select-box {
+      width: 100%;
+      margin-bottom: 15px;
+    }
+
+    .select-box label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+      color: #666;
+      font-size: 14px;
+    }
+
+    .select-box select, .select-box input {
+      width: 100%;
+      padding: 14px 12px;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+      box-sizing: border-box;
+    }
+
+    .select-box select:focus, .select-box input:focus {
+      border-color: var(--primary-color);
+    }
+
+    .reset-link-container {
+      width: 100%;
+      text-align: right;
+      margin-top: -10px;
+      margin-bottom: 15px;
+    }
+
+    .reset-link {
+      font-size: 12px;
+      color: #e24a4a;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 5px;
+    }
+
+    #start-btn {
+      width: 100%;
+      padding: 15px;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    /* --- 메인 캘린더 화면 --- */
+    #main-screen {
+      display: none;
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .class-info-bar {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-color);
+      padding: 10px 15px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      box-sizing: border-box;
+    }
+
+    .class-info-bar h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      color: var(--primary-color);
+    }
+
+    .back-btn {
+      padding: 8px 12px;
+      background-color: #e2e8f0;
+      color: #4a5568;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .container {
+      display: flex;
+      gap: 15px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .calendar-section {
+      flex: 3;
+      background: var(--card-color);
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      min-height: 450px;
+    }
+
+    .form-section {
+      flex: 1.2;
+      background: var(--card-color);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 25px;
+      box-sizing: border-box;
+    }
+
+    .form-section h3 {
+      margin-top: 0;
+      font-size: 1.1rem;
+      color: #333;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    .form-group.row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .form-group.row div {
+      flex: 1;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: bold;
+      color: #555;
+      font-size: 13px;
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .submit-btn {
+      width: 100%;
+      padding: 12px;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 15px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    /* --- 시간표 영역 --- */
+    .timetable-section {
+      border-top: 1px dashed #ddd;
+      padding-top: 20px;
+    }
+
+    .timetable-responsive {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      border: 1px solid #eee;
+    }
+
+    .timetable-table {
+      width: 100%;
+      min-width: 320px;
+      border-collapse: collapse;
+    }
+
+    .timetable-table th, .timetable-table td {
+      border: 1px solid #eee;
+      text-align: center;
+      padding: 6px 2px;
+      font-size: 12px;
+    }
+
+    .timetable-table th {
+      background-color: #f7fafc;
+      font-weight: bold;
+      color: #4a5568;
+    }
+
+    .timetable-table input {
+      width: 100%;
+      border: none;
+      text-align: center;
+      padding: 4px 0;
+      font-size: 12px;
+      background: transparent;
+      outline: none;
+    }
+
+    .timetable-table input:focus {
+      background-color: #ebf8ff;
+    }
+
+    .save-timetable-btn {
+      width: 100%;
+      padding: 10px;
+      background-color: #48bb78;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .fc-event {
+      border: none !important;
+      border-radius: 4px !important;
+      padding: 2px 4px !important;
+      white-space: normal !important;
+      word-break: break-all !important;
+    }
+
+    .fc-event-title {
+      font-size: 11px !important;
+      font-weight: 500 !important;
+      line-height: 1.2 !important;
+    }
+
+    .fc .fc-toolbar-title {
+      font-size: 1.1rem !important;
+    }
+    .fc .fc-button {
+      padding: 6px 8px !important;
+      font-size: 12px !important;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 8px;
+      }
+      .container {
+        flex-direction: column;
+      }
+      .calendar-section {
+        order: 1;
+        padding: 10px;
+        min-height: 400px;
+      }
+      .form-section {
+        order: 2;
+        padding: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>📅 우리 반 공유 캘린더</h1>
+  </header>
+
+  <div id="selection-screen">
+    <h2>반 선택하기</h2>
+    
+    <div class="select-box">
+      <label for="grade-select">학년</label>
+      <select id="grade-select">
+        <option value="1">1학년</option>
+        <option value="2">2학년</option>
+        <option value="3">3학년</option>
+      </select>
+    </div>
+
+    <div class="select-box">
+      <label for="class-select">반</label>
+      <select id="class-select">
+        <option value="1">1반</option>
+        <option value="2">2반</option>
+        <option value="3">3반</option>
+        <option value="4">4반</option>
+        <option value="5">5반</option>
+        <option value="6">6반</option>
+        <option value="7">7반</option>
+        <option value="8">8반</option>
+        <option value="9">9반</option>
+        <option value="10">10반</option>
+      </select>
+    </div>
+
+    <div class="select-box">
+      <label for="pw-input" id="pw-label">학급 관리자 비밀번호</label>
+      <input type="password" id="pw-input" placeholder="처음 입장 시 비번이 설정됩니다" required>
+    </div>
+
+    <div class="reset-link-container" id="reset-container" style="display: none;">
+      <button type="button" class="reset-link" id="pw-reset-btn">비밀번호 찾기/재설정</button>
+    </div>
+
+    <button id="start-btn">캘린더 입장</button>
+  </div>
+
+  <div id="main-screen">
+    <div class="class-info-bar">
+      <h2 id="class-title">학년 반 캘린더</h2>
+      <button class="back-btn" id="change-class-btn">반 변경하기</button>
+    </div>
+
+    <div class="container">
+      
+      <div class="calendar-section">
+        <div id="calendar"></div>
+      </div>
+
+      <div class="form-section">
+        <div>
+          <h3>➕ 일정 등록</h3>
+          <form id="eval-form">
+            <div class="form-group">
+              <label for="title">일정 이름</label>
+              <input type="text" id="title" placeholder="예: 수행평가 제출" required>
+            </div>
+            
+            <div class="form-group row">
+              <div>
+                <label for="start-date">시작일</label>
+                <input type="date" id="start-date" required>
+              </div>
+              <div>
+                <label for="end-date">종료일 (선택)</label>
+                <input type="date" id="end-date">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="subject-color">카테고리 색상</label>
+              <select id="subject-color">
+                <option value="#ff9b9b" style="background-color: #ff9b9b;">파스텔 핑크</option>
+                <option value="#a3e2ad" style="background-color: #a3e2ad;">파스텔 연두</option>
+                <option value="#b2d8f9" style="background-color: #b2d8f9;">파스텔 블루</option>
+                <option value="#ffdf80" style="background-color: #ffdf80;">파스텔 노랑</option>
+                <option value="#d2bcf3" style="background-color: #d2bcf3;">파스텔 보라</option>
+                <option value="#f9bc9b" style="background-color: #f9bc9b;">파스텔 살구</option>
+                <option value="#90afc5" style="background-color: #90afc5; color: #ffffff;">파스텔 블루그레이</option>
+                <option value="#e5e8e8" style="background-color: #e5e8e8;">파스텔 그레이</option>
+              </select>
+            </div>
+            <button type="submit" class="submit-btn">공유 캘린더에 등록</button>
+          </form>
+        </div>
+
+        <div class="timetable-section">
+          <h3>🕒 학급 시간표 (7교시)</h3>
+          <div class="timetable-responsive">
+            <table class="timetable-table">
+              <thead>
+                <tr>
+                  <th>교시</th>
+                  <th>월</th>
+                  <th>화</th>
+                  <th>수</th>
+                  <th>목</th>
+                  <th>금</th>
+                </tr>
+              </thead>
+              <tbody id="timetable-body"></tbody>
+            </table>
+          </div>
+          <button type="button" class="save-timetable-btn" id="save-timetable-btn">💾 시간표 저장</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // 사용자 파이어베이스 연동 정보 장착 완료
+    const firebaseConfig = {
+      apiKey: "AIzaSyAznDWXnFcYKmiR30tYhdF6l_El-nafvV0",
+      authDomain: "calender-cf794.firebaseapp.com",
+      projectId: "calender-cf794",
+      storageBucket: "calender-cf794.firebasestorage.app",
+      messagingSenderId: "353556102566",
+      appId: "1:353556102566:web:8ff9a1f6010c14ad146367",
+      measurementId: "G-809SHQLNRF"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const selectionScreen = document.getElementById('selection-screen');
+      const mainScreen = document.getElementById('main-screen');
+      const startBtn = document.getElementById('start-btn');
+      const changeClassBtn = document.getElementById('change-class-btn');
+      const classTitle = document.getElementById('class-title');
+      const calendarEl = document.getElementById('calendar');
+      const gradeSelect = document.getElementById('grade-select');
+      const classSelect = document.getElementById('class-select');
+      const pwInput = document.getElementById('pw-input');
+      const pwLabel = document.getElementById('pw-label');
+      const pwResetBtn = document.getElementById('pw-reset-btn');
+      const resetContainer = document.getElementById('reset-container');
+      const timetableBody = document.getElementById('timetable-body');
+      const saveTimetableBtn = document.getElementById('save-timetable-btn');
+
+      const MASTER_RECOVERY_PW = '2026!'; 
+
+      let calendar = null;
+      let currentDocId = ''; 
+      let savedEvents = [];
+      let unsubscribe = null;
+
+      function createTimetableRows() {
+        timetableBody.innerHTML = '';
+        for (let period = 1; period <= 7; period++) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><b>${period}</b></td>
+            <td><input type="text" data-period="${period}" data-day="mon"></td>
+            <td><input type="text" data-period="${period}" data-day="tue"></td>
+            <td><input type="text" data-period="${period}" data-day="wed"></td>
+            <td><input type="text" data-period="${period}" data-day="thu"></td>
+            <td><input type="text" data-period="${period}" data-day="fri"></td>
+          `;
+          timetableBody.appendChild(tr);
+        }
+      }
+
+      createTimetableRows();
+
+      const autoGrade = localStorage.getItem('user_saved_grade');
+      const autoClass = localStorage.getItem('user_saved_class');
+
+      if (autoGrade && autoClass) {
+        gradeSelect.value = autoGrade;
+        classSelect.value = autoClass;
+      }
+
+      gradeSelect.addEventListener('change', updatePwPlaceholder);
+      classSelect.addEventListener('change', updatePwPlaceholder);
+
+      function updatePwPlaceholder() {
+        const grade = gradeSelect.value;
+        const sClass = classSelect.value;
+        const docId = `G${grade}_C${sClass}`;
+
+        db.collection('classes').doc(docId).get().then(doc => {
+          if (doc.exists) {
+            pwLabel.textContent = "학급 관리자 비밀번호 입력";
+            pwInput.placeholder = "관리자 비밀번호 입력";
+            resetContainer.style.display = 'block'; 
+          } else {
+            pwLabel.textContent = "학급 신규 비밀번호 생성";
+            pwInput.placeholder = "사용할 비밀번호 설정";
+            resetContainer.style.display = 'none'; 
+          }
+        }).catch(() => {
+          pwLabel.textContent = "학급 비밀번호 입력";
+          pwInput.placeholder = "비밀번호 입력";
+          resetContainer.
