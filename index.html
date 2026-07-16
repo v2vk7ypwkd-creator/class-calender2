@@ -44,6 +44,7 @@
       font-size: 1.5rem;
     }
 
+    /* --- 학년/반 선택 화면 --- */
     #selection-screen {
       display: flex;
       flex-direction: column;
@@ -124,6 +125,7 @@
       transition: background 0.2s;
     }
 
+    /* --- 메인 캘린더 화면 --- */
     #main-screen {
       display: none;
       width: 100%;
@@ -237,6 +239,7 @@
       font-weight: bold;
     }
 
+    /* --- 시간표 영역 --- */
     .timetable-section {
       border-top: 1px dashed #ddd;
       padding-top: 20px;
@@ -457,7 +460,6 @@
   </div>
 
   <script>
-    // 시윤님의 실시간 파이어베이스 연동 정보 장착 완료!
     const firebaseConfig = {
       apiKey: "AIzaSyAznDWXnFcYKmiR30tYhdF6l_El-nafvV0",
       authDomain: "calender-cf794.firebaseapp.com",
@@ -493,6 +495,7 @@
       let currentDocId = ''; 
       let savedEvents = [];
       let unsubscribe = null;
+      let isFirstLoad = true; 
 
       function createTimetableRows() {
         timetableBody.innerHTML = '';
@@ -595,6 +598,7 @@
             } else {
               localStorage.setItem('user_saved_grade', grade);
               localStorage.setItem('user_saved_class', sClass);
+              isFirstLoad = true; 
               enterCalendar(grade, sClass);
             }
           } else {
@@ -606,6 +610,7 @@
               alert(`축하합니다! ${grade}학년 ${sClass}반 비밀번호가 설정되었습니다.`);
               localStorage.setItem('user_saved_grade', grade);
               localStorage.setItem('user_saved_class', sClass);
+              isFirstLoad = true;
               enterCalendar(grade, sClass);
             });
           }
@@ -628,6 +633,40 @@
         selectionScreen.style.display = 'flex';
       });
 
+      // 내일 있는 실제 일정 이름들을 분석해 알림창으로 띄워주는 핵심 기능!
+      function checkUpcomingEvents(events) {
+        if (!events || events.length === 0) return;
+
+        // 오늘 기준 내일 날짜 계산 (로컬 타임존 반영)
+        const today = new Date();
+        const tomorrow = new Date();
+        tomorrow.setDate(today.getDate() + 1);
+
+        const tomorrowStr = tomorrow.getFullYear() + '-' + 
+                            String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + 
+                            String(tomorrow.getDate()).padStart(2, '0');
+
+        let tomorrowEvents = [];
+
+        events.forEach(event => {
+          // 일정이 여러 날에 걸쳐있을 경우, 시작일이 내일과 같으면 타겟 지정
+          const startStr = event.start; 
+          if (startStr === tomorrowStr) {
+            tomorrowEvents.push(event.title);
+          }
+        });
+
+        // 내일 등록된 일정이 존재하면, 그 이름들을 목록화하여 알림창 노출
+        if (tomorrowEvents.length > 0) {
+          let message = "🔔 [내일 학급 일정 알림]\n\n내일 다음 일정이 예정되어 있습니다. 확인해 보세요!\n\n";
+          tomorrowEvents.forEach((title, index) => {
+            message += `${index + 1}. 📌 ${title}\n`;
+          });
+          
+          alert(message);
+        }
+      }
+
       function enterCalendar(grade, sClass) {
         currentDocId = `G${grade}_C${sClass}`;
         classTitle.textContent = `🏫 ${grade}학년 ${sClass}반`;
@@ -646,6 +685,14 @@
             if (calendar) {
               calendar.removeAllEvents();
               calendar.addEventSource(savedEvents);
+            }
+
+            // 첫 로그인/입장 시 내일의 세부 일정 이름만 파싱하여 팝업 띄우기
+            if (isFirstLoad) {
+              isFirstLoad = false;
+              setTimeout(() => {
+                checkUpcomingEvents(savedEvents);
+              }, 600);
             }
 
             const timetableData = data.timetable || {};
